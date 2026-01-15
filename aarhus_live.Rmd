@@ -1,0 +1,111 @@
+---
+title: "aarhus_live_3"
+author: "Mette Marie"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(dplyr)
+library(leaflet)
+library(leaflet.extras)
+library(shiny)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r data}
+dir.create("data")
+steder <- read_csv(here("data/aarhus_kronike_data.csv"))
+```
+
+```{r opbygning af kort}
+lng_range <- range(steder$Longitude)
+lat_range <- range(steder$Latitude)
+
+UI <- fluidPage(
+  titlePanel("Aarhus Live - Musikbegivenheder i Aarhus fra 1945 til 2000"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput(
+        inputId = "year",
+        label = "Vælg år",
+        min = min(steder$år),
+        max = max(steder$år),
+        value = min(steder$år),
+        step = 5,
+        sep = "",
+        animate = animationOptions(interval = 500, loop = FALSE)
+      ),
+      helpText("Træk i slideren eller tryk play for at se år for år")
+    ),
+    mainPanel(
+      leafletOutput("map", height = 800)
+    )
+  )
+)
+
+server <- function(input, output, session) { 
+  
+  output$map <- renderLeaflet({ 
+    leaflet() %>%
+      addTiles() %>%
+      fitBounds(lng1 = lng_range[1], lat1 = lat_range[1],
+                lng2 = lng_range[2], lat2 = lat_range[2])
+  })
+ 
+  
+  observe({
+  d <- subset(steder, år == input$year)
+  leafletProxy("map") %>%
+    clearGroup("points")%>%
+    
+clearMarkers() %>%
+    clearMarkerClusters()%>%
+    addMarkers(
+      data = d,
+      lng = ~Longitude,
+      lat = ~Latitude,
+      popup = paste0(
+        "<b>Spillested:</b> ", d$spillested, "<br>",
+        "<b>Artist:</b> ", d$Artist, "<br>",
+        "<b>Genre:</b> ", d$Genre, "<br>",
+        "<b>Arrangementstype:</b> ", d$Arrangementstype, "<br>",
+        "<b>Dato:</b> ", d$dato, "&nbsp", d$år
+      ),
+      clusterOptions = markerClusterOptions(
+        maxClusterRadius = 1,
+        spiderfyOnMaxZoom = TRUE
+      )
+    )
+ })
+}  
+
+shinyApp(UI, server)
+```
+
+```{r nysgerrighed}
+
+  
+    genre_pal <- colorFactor(
+    palette = c(
+      "klassisk" = "blue",
+      "underholdningsmusik" = "yellow",
+      "pop/rock/beat" = "red",
+      "folk/folkemusik/spillemandsmusik" = "green", 
+      "musikteater" = "pink",
+      "jazz" = "orange",
+      "marchmusik" = "purple",
+      "ikkevestlig musik" = "lightblue"
+    ),
+    domain = steder$Genre
+  )
+
+```
